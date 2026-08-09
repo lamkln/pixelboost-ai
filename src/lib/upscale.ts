@@ -1,3 +1,8 @@
+import Upscaler from 'upscaler'
+import type { ModelDefinition } from 'upscaler'
+import x2Model from '@upscalerjs/esrgan-slim/2x'
+import x4Model from '@upscalerjs/esrgan-slim/4x'
+
 export type OutputFormat = 'png' | 'jpg' | 'webp'
 export type ScaleFactor = 2 | 4 | 8
 
@@ -6,78 +11,65 @@ export type UpscaleResult = {
   dataUrl: string
   width: number
   height: number
+  /** Nearest-neighbor enlarge of the source, same pixel size as the AI result — for fair comparison. */
+  baselineSrc: string
 }
 
-function clamp(value: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, value))
+type ModelScale = 2 | 4
+type UpscalerInstance = InstanceType<typeof Upscaler>
+
+const upscalerCache = new Map<ModelScale, UpscalerInstance>()
+
+function localModel(definition: ModelDefinition, scale: ModelScale): ModelDefinition {
+  return {
+    ...definition,
+    path: `/models/esrgan-slim/x${scale}/model.json`,
+  }
 }
 
-function yieldFrame() {
-  return new Promise<void>((resolve) => {
-    requestAnimationFrame(() => resolve())
-  })
-}
-
-/** Progressive high-quality upsample with a light sharpen pass. */
-export async function upscaleImage(
-  source: HTMLImageElement | ImageBitmap,
-  scale: ScaleFactor,
-  format: OutputFormat,
-  onProgress?: (progress: number) => void,
-): Promise<UpscaleResult> {
-  const srcW = source.width
-  const srcH = source.height
-  const destW = Math.round(srcW * scale)
-  const destH = Math.round(srcH * scale)
-
-  if (destW * destH > 36_000_000) {
-    throw new Error('Output would be too large. Try a smaller image or lower scale.')
+async function getUpscaler(scale: ModelScale): Promise<UpscalerInstance> {
+  const cached = upscalerCache.get(scale)
+  if (cached) {
+    await cached.ready
+    return cached
   }
 
-  onProgress?.(0.08)
-  await yieldFrame()
+  const definition = scale === 2 ? localModel(x2Model, 2) : localModel(x4Model, 4)
+  const upscaler = new Upscaler({ model: definition })
+  upscalerCache.set(scale, upscaler)
+  await upscaler.ready
+  return upscaler
+}
 
-  let current: HTMLCanvasElement | HTMLImageElement | ImageBitmap = source
-  let currentW = srcW
-  let currentH = srcH
-  let stepsDone = 0
-  const totalSteps = Math.log2(scale)
+function mimeFor(format: OutputFormat) {
+  if (format === 'jpg') return 'image/jpeg'
+  if (format === 'webp') return 'image/webp'
+  return 'image/png'
+}
 
-  while (currentW < destW || currentH < destH) {
-    const nextW = Math.min(destW, currentW * 2)
-    const nextH = Math.min(destH, currentH * 2)
-    const step = document.createElement('canvas')
-    step.width = nextW
-    step.height = nextH
-    const ctx = step.getContext('2d')
-    if (!ctx) throw new Error('Canvas is not available in this browser.')
-    ctx.imageSmoothingEnabled = true
-    ctx.imageSmoothingQuality = 'high'
-    ctx.drawImage(current, 0, 0, nextW, nextH)
-    current = step
-    currentW = nextW
-    currentH = nextH
-    stepsDone += 1
-    onProgress?.(0.08 + (stepsDone / totalSteps) * 0.55)
-    await yieldFrame()
-  }
-
-  const canvas = current as HTMLCanvasElement
-  const ctx = canvas.getContext('2d', { willReadFrequently: true })
+async function canvasFromSource(
+  source: CanvasImageSource,
+  width: number,
+  height: number,
+  smooth: boolean,
+): Promise<HTMLCanvasElement> {
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const ctx = canvas.getContext('2d')
   if (!ctx) throw new Error('Canvas is not available in this browser.')
+  ctx.imageSmoothingEnabled = smooth
+  if (smooth) ctx.imageSmoothingQuality = 'high'
+  ctx.drawImage(source, 0, 0, width, height)
+  return canvas
+}
 
-  if (destW * destH <= 8_000_000) {
-    const imageData = ctx.getImageData(0, 0, destW, destH)
-    applyFastSharpen(imageData, 0.35 + scale * 0.03)
-    ctx.putImageData(imageData, 0, 0)
-  }
-  onProgress?.(0.82)
-  await yieldFrame()
-
-  const mime =
-    format === 'jpg' ? 'image/jpeg' : format === 'webp' ? 'image/webp' : 'image/png'
+async function encodeCanvas(
+  canvas: HTMLCanvasElement,
+  format: OutputFormat,
+): Promise<{ blob: Blob; dataUrl: string }> {
+  const mime = mimeFor(format)
   const quality = format === 'png' ? undefined : 0.94
-
   const blob = await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob(
       (result) => {
@@ -88,30 +80,87 @@ export async function upscaleImage(
       quality,
     )
   })
-
-  const dataUrl = URL.createObjectURL(blob)
-  onProgress?.(1)
-
-  return { blob, dataUrl, width: destW, height: destH }
+  return { blob, dataUrl: URL.createObjectURL(blob) }
 }
 
-function applyFastSharpen(imageData: ImageData, amount: number) {
-  const { data, width, height } = imageData
-  const src = new Uint8ClampedArray(data)
+async function loadImageFromUrl(url: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => resolve(img)
+    img.onerror = () => reject(new Error('Could not read the upscaled image.'))
+    img.src = url
+  })
+}
 
-  for (let y = 1; y < height - 1; y += 1) {
-    for (let x = 1; x < width - 1; x += 1) {
-      const i = (y * width + x) * 4
-      for (let c = 0; c < 3; c += 1) {
-        const center = src[i + c]
-        const up = src[((y - 1) * width + x) * 4 + c]
-        const down = src[((y + 1) * width + x) * 4 + c]
-        const left = src[(y * width + (x - 1)) * 4 + c]
-        const right = src[(y * width + (x + 1)) * 4 + c]
-        const sharpened = center * 5 - up - down - left - right
-        data[i + c] = clamp(center + (sharpened - center) * amount, 0, 255)
-      }
-    }
+async function runModelPass(
+  source: HTMLImageElement | HTMLCanvasElement,
+  scale: ModelScale,
+  onProgress?: (progress: number) => void,
+  progressFrom = 0,
+  progressTo = 1,
+): Promise<HTMLImageElement> {
+  const upscaler = await getUpscaler(scale)
+  onProgress?.(progressFrom)
+
+  const base64 = await upscaler.upscale(source, {
+    output: 'base64',
+    patchSize: 64,
+    padding: 8,
+    awaitNextFrame: true,
+    progress: (amount: number) => {
+      onProgress?.(progressFrom + amount * (progressTo - progressFrom))
+    },
+  })
+
+  return loadImageFromUrl(base64)
+}
+
+/** ESRGAN AI upscale in the browser (2× / 4× models; 8× = 4× then 2×). */
+export async function upscaleImage(
+  source: HTMLImageElement,
+  scale: ScaleFactor,
+  format: OutputFormat,
+  onProgress?: (progress: number) => void,
+): Promise<UpscaleResult> {
+  const srcW = source.width
+  const srcH = source.height
+  const destW = Math.round(srcW * scale)
+  const destH = Math.round(srcH * scale)
+
+  if (destW * destH > 24_000_000) {
+    throw new Error('Output would be too large. Try a smaller image or lower scale.')
+  }
+
+  let enhanced: HTMLImageElement
+
+  if (scale === 8) {
+    // Browser ESRGAN slim has no 8× weights — chain 4× then 2×.
+    const mid = await runModelPass(source, 4, onProgress, 0.02, 0.62)
+    enhanced = await runModelPass(mid, 2, onProgress, 0.62, 0.92)
+  } else {
+    enhanced = await runModelPass(source, scale, onProgress, 0.02, 0.92)
+  }
+
+  if (enhanced.width !== destW || enhanced.height !== destH) {
+    // Guard against unexpected model output size.
+    const normalized = await canvasFromSource(enhanced, destW, destH, true)
+    enhanced = await loadImageFromUrl(normalized.toDataURL('image/png'))
+  }
+
+  const outputCanvas = await canvasFromSource(enhanced, destW, destH, true)
+  const { blob, dataUrl } = await encodeCanvas(outputCanvas, format)
+
+  const baselineCanvas = await canvasFromSource(source, destW, destH, false)
+  const baselineSrc = baselineCanvas.toDataURL('image/png')
+
+  onProgress?.(1)
+
+  return {
+    blob,
+    dataUrl,
+    width: destW,
+    height: destH,
+    baselineSrc,
   }
 }
 
