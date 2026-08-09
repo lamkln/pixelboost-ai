@@ -21,7 +21,7 @@ export function Hero() {
         <p className="brand-mark">PixelBoost</p>
         <h1>Enlarge images without washing out the detail.</h1>
         <p className="hero__lede">
-          Private, browser-based upscaling — your files never leave this device.
+          Private ESRGAN upscaling in your browser — your files never leave this device.
         </p>
         <div className="hero__actions">
           <a className="btn btn--primary" href="#workspace">

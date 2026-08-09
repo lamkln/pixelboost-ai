@@ -22,6 +22,8 @@ type ResultState = {
   afterLabel: string
   filename: string
   blob: Blob
+  width: number
+  height: number
 }
 
 export function Workspace() {
@@ -59,15 +61,15 @@ export function Workspace() {
       setError('Please choose a JPG, PNG, or WebP image.')
       return
     }
-    if (next.size > 25 * 1024 * 1024) {
-      setError('Keep uploads under 25 MB for smooth browser processing.')
+    if (next.size > 15 * 1024 * 1024) {
+      setError('Keep uploads under 15 MB for browser AI upscaling.')
       return
     }
 
     try {
       const img = await loadImageFromFile(next)
-      if (img.width > 3500 || img.height > 3500) {
-        setError('Source images should be 3500×3500 or smaller.')
+      if (img.width > 1600 || img.height > 1600) {
+        setError('For AI upscaling, use images 1600×1600 or smaller.')
         return
       }
       const url = URL.createObjectURL(next)
@@ -92,15 +94,23 @@ export function Workspace() {
       })
       const base = file.name.replace(/\.[^/.]+$/, '')
       setResult({
-        beforeSrc: previewUrl!,
+        // Pixel-matched nearest-neighbor baseline so the AI detail gain is visible.
+        beforeSrc: output.baselineSrc,
         afterSrc: output.dataUrl,
-        beforeLabel: `${imageEl.width}×${imageEl.height}`,
-        afterLabel: `${output.width}×${output.height} · ${formatBytes(output.blob.size)}`,
+        beforeLabel: `${imageEl.width}×${imageEl.height} (enlarged)`,
+        afterLabel: `${output.width}×${output.height} AI · ${formatBytes(output.blob.size)}`,
         filename: `${base}_${scale}x_pixelboost.${format === 'jpg' ? 'jpg' : format}`,
         blob: output.blob,
+        width: output.width,
+        height: output.height,
       })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Upscaling failed.')
+      const message = err instanceof Error ? err.message : 'Upscaling failed.'
+      setError(
+        /fetch|network|Load|model/i.test(message)
+          ? 'Could not load the AI model. Check your connection and try again.'
+          : message,
+      )
     } finally {
       setBusy(false)
     }
@@ -118,7 +128,10 @@ export function Workspace() {
     <section className="workspace" id="workspace">
       <div className="section-intro">
         <h2>Drop an image. Choose a scale. Download the result.</h2>
-        <p>Processing stays on your machine — nothing is uploaded.</p>
+        <p>
+          ESRGAN AI runs in your browser — files never leave this device. First run loads a small
+          local model.
+        </p>
       </div>
 
       <div
@@ -176,7 +189,7 @@ export function Workspace() {
           <div className="dropzone__empty">
             <span className="dropzone__glyph" aria-hidden="true" />
             <strong>Drop an image here</strong>
-            <span>or click to browse · JPG, PNG, WebP · up to 25 MB</span>
+            <span>or click to browse · JPG, PNG, WebP · up to 1600px / 15 MB</span>
           </div>
         )}
       </div>
@@ -222,12 +235,22 @@ export function Workspace() {
           disabled={!file || busy}
           onClick={() => void runUpscale()}
         >
-          {busy ? `Upscaling… ${Math.round(progress * 100)}%` : 'Upscale image'}
+          {busy
+            ? progress < 0.05
+              ? 'Loading AI model…'
+              : `AI upscaling… ${Math.round(progress * 100)}%`
+            : 'Upscale with AI'}
         </button>
       </div>
 
       {busy && (
-        <div className="progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress * 100)}>
+        <div
+          className="progress"
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(progress * 100)}
+        >
           <div className="progress__fill" style={{ width: `${Math.max(6, progress * 100)}%` }} />
         </div>
       )}
@@ -249,9 +272,13 @@ export function Workspace() {
           <CompareSlider
             beforeSrc={result.beforeSrc}
             afterSrc={result.afterSrc}
-            beforeLabel="Original"
-            afterLabel="Upscaled"
+            beforeLabel="Simple enlarge"
+            afterLabel="AI upscale"
           />
+          <p className="result__hint">
+            Drag the slider: left is a plain resize (blocky), right is ESRGAN AI detail recovery at{' '}
+            {result.width}×{result.height}.
+          </p>
         </div>
       )}
     </section>
