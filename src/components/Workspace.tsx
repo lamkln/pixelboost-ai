@@ -41,9 +41,14 @@ export function Workspace() {
   useEffect(() => {
     return () => {
       if (previewUrl) URL.revokeObjectURL(previewUrl)
+    }
+  }, [previewUrl])
+
+  useEffect(() => {
+    return () => {
       if (result?.afterSrc) URL.revokeObjectURL(result.afterSrc)
     }
-  }, [previewUrl, result])
+  }, [result])
 
   const acceptFile = async (next: File | undefined | null) => {
     if (!next) return
@@ -65,7 +70,6 @@ export function Workspace() {
         setError('Source images should be 3500×3500 or smaller.')
         return
       }
-      if (previewUrl) URL.revokeObjectURL(previewUrl)
       const url = URL.createObjectURL(next)
       setFile(next)
       setPreviewUrl(url)
@@ -80,7 +84,6 @@ export function Workspace() {
     setBusy(true)
     setError(null)
     setProgress(0)
-    if (result?.afterSrc) URL.revokeObjectURL(result.afterSrc)
     setResult(null)
 
     try {
