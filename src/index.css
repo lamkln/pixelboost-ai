@@ -454,6 +454,13 @@ main {
   font-weight: 600;
 }
 
+.result__hint {
+  margin: 0.85rem 0 0;
+  color: var(--ink-soft);
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
 /* ——— Compare ——— */
 .compare {
   position: relative;

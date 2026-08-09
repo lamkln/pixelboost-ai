@@ -21,11 +21,11 @@ function App() {
             </li>
             <li>
               <strong>Pick a scale</strong>
-              <span>2×, 4×, or 8× with progressive resampling and a light sharpen pass.</span>
+              <span>2×, 4×, or 8× using an ESRGAN model that reconstructs edges and texture.</span>
             </li>
             <li>
               <strong>Download</strong>
-              <span>Export PNG, JPG, or WebP — still entirely on your device.</span>
+              <span>Export PNG, JPG, or WebP — inference stays on your device.</span>
             </li>
           </ol>
         </section>
