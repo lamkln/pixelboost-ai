@@ -6,7 +6,11 @@ import {
   upscaleImage,
 } from '../lib/upscale'
 
-const SCALES: ScaleFactor[] = [2, 4]
+const SCALES: { value: ScaleFactor; label: string; hint: string }[] = [
+  { value: 2, label: '2x', hint: 'Double size' },
+  { value: 4, label: '4x', hint: '4× larger' },
+  { value: 8, label: '8x', hint: '8× larger' },
+]
 
 type ResultState = {
   afterSrc: string
@@ -14,9 +18,10 @@ type ResultState = {
   width: number
   height: number
   sizeLabel: string
+  scale: ScaleFactor
 }
 
-type Stage = 'idle' | 'working' | 'done'
+type Stage = 'idle' | 'ready' | 'working' | 'done'
 
 export function Tool() {
   const inputId = useId()
@@ -25,7 +30,8 @@ export function Tool() {
   const [stage, setStage] = useState<Stage>('idle')
   const [progress, setProgress] = useState(0)
   const [error, setError] = useState<string | null>(null)
-  const [fileName, setFileName] = useState<string | null>(null)
+  const [file, setFile] = useState<File | null>(null)
+  const [imageEl, setImageEl] = useState<HTMLImageElement | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [result, setResult] = useState<ResultState | null>(null)
   const [dragOver, setDragOver] = useState(false)
@@ -46,13 +52,14 @@ export function Tool() {
     setStage('idle')
     setProgress(0)
     setError(null)
-    setFileName(null)
+    setFile(null)
+    setImageEl(null)
     setPreviewUrl(null)
     setResult(null)
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
-  const processFile = async (next: File | undefined | null, nextScale: ScaleFactor) => {
+  const acceptFile = async (next: File | undefined | null) => {
     if (!next) return
     setError(null)
     setResult(null)
@@ -74,22 +81,36 @@ export function Tool() {
       }
 
       const url = URL.createObjectURL(next)
-      setFileName(next.name)
+      setFile(next)
+      setImageEl(img)
       setPreviewUrl(url)
-      setStage('working')
-      setProgress(0)
+      setStage('ready')
+    } catch {
+      setError('Could not open that image. Try another file.')
+      setStage('idle')
+    }
+  }
 
-      const output = await upscaleImage(img, nextScale, 'png', (value) => {
+  const runUpscale = async () => {
+    if (!file || !imageEl) return
+    setError(null)
+    setResult(null)
+    setStage('working')
+    setProgress(0)
+
+    try {
+      const output = await upscaleImage(imageEl, scale, 'png', (value) => {
         startTransition(() => setProgress(value))
       })
-      const base = next.name.replace(/\.[^/.]+$/, '')
+      const base = file.name.replace(/\.[^/.]+$/, '')
 
       setResult({
         afterSrc: output.dataUrl,
-        filename: `${base}_${nextScale}x_pixelboost.png`,
+        filename: `${base}_${scale}x_pixelboost.png`,
         width: output.width,
         height: output.height,
         sizeLabel: formatBytes(output.blob.size),
+        scale,
       })
       setStage('done')
     } catch (err) {
@@ -99,12 +120,8 @@ export function Tool() {
           ? 'Could not load the AI model. Try again.'
           : message,
       )
-      setStage('idle')
+      setStage('ready')
     }
-  }
-
-  const onPick = (file: File | undefined | null) => {
-    void processFile(file, scale)
   }
 
   const download = () => {
@@ -115,6 +132,9 @@ export function Tool() {
     anchor.click()
   }
 
+  const outputPreview =
+    imageEl != null ? `${imageEl.width * scale}×${imageEl.height * scale}` : null
+
   return (
     <main className="tool">
       <div className="tool__intro">
@@ -124,20 +144,6 @@ export function Tool() {
 
       {stage === 'idle' && (
         <div className="tool__panel">
-          <div className="scale-row" role="group" aria-label="Upscale amount">
-            {SCALES.map((value) => (
-              <button
-                key={value}
-                type="button"
-                className={`scale-chip${scale === value ? ' is-active' : ''}`}
-                onClick={() => setScale(value)}
-                aria-pressed={scale === value}
-              >
-                {value}x
-              </button>
-            ))}
-          </div>
-
           <div
             className={`uploader${dragOver ? ' is-drag' : ''}`}
             onDragEnter={(event) => {
@@ -157,7 +163,7 @@ export function Tool() {
             onDrop={(event) => {
               event.preventDefault()
               setDragOver(false)
-              onPick(event.dataTransfer.files[0])
+              void acceptFile(event.dataTransfer.files[0])
             }}
           >
             <input
@@ -166,7 +172,7 @@ export function Tool() {
               className="sr-only"
               type="file"
               accept="image/jpeg,image/png,image/webp,image/gif"
-              onChange={(event) => onPick(event.target.files?.[0])}
+              onChange={(event) => void acceptFile(event.target.files?.[0])}
             />
             <button
               type="button"
@@ -183,11 +189,58 @@ export function Tool() {
         </div>
       )}
 
+      {stage === 'ready' && file && imageEl && previewUrl && (
+        <div className="tool__panel tool__panel--ready">
+          <div className="file-row">
+            <img className="status-thumb" src={previewUrl} alt="" />
+            <div className="file-row__text">
+              <strong>{file.name}</strong>
+              <span>
+                {imageEl.width}×{imageEl.height} · {formatBytes(file.size)}
+              </span>
+            </div>
+          </div>
+
+          <div className="scale-block">
+            <p className="scale-block__label">Upscale by</p>
+            <div className="scale-row" role="radiogroup" aria-label="Upscale amount">
+              {SCALES.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  role="radio"
+                  className={`scale-chip${scale === option.value ? ' is-active' : ''}`}
+                  onClick={() => setScale(option.value)}
+                  aria-checked={scale === option.value}
+                >
+                  <span className="scale-chip__value">{option.label}</span>
+                  <span className="scale-chip__hint">{option.hint}</span>
+                </button>
+              ))}
+            </div>
+            {outputPreview && (
+              <p className="scale-block__out">
+                Output size: <strong>{outputPreview}</strong>
+              </p>
+            )}
+          </div>
+
+          <button type="button" className="btn-select btn-select--block" onClick={() => void runUpscale()}>
+            Upscale {scale}x
+          </button>
+          <button type="button" className="btn-text" onClick={reset}>
+            Choose another image
+          </button>
+
+          {error && <p className="error">{error}</p>}
+        </div>
+      )}
+
       {stage === 'working' && (
         <div className="tool__panel tool__panel--status">
           {previewUrl && <img className="status-thumb" src={previewUrl} alt="" />}
-          <h2>Upscaling image…</h2>
-          <p className="status-file">{fileName}</p>
+          <h2>Upscaling {scale}x…</h2>
+          <p className="status-file">{file?.name}</p>
           <div
             className="progress"
             role="progressbar"
@@ -207,10 +260,20 @@ export function Tool() {
         <div className="tool__panel tool__panel--done">
           <img className="result-preview" src={result.afterSrc} alt="Upscaled result" />
           <p className="result-meta">
-            {result.width}×{result.height} · {result.sizeLabel}
+            {result.scale}x · {result.width}×{result.height} · {result.sizeLabel}
           </p>
           <button type="button" className="btn-select" onClick={download}>
             Download
+          </button>
+          <button
+            type="button"
+            className="btn-text"
+            onClick={() => {
+              setResult(null)
+              setStage('ready')
+            }}
+          >
+            Change upscale amount
           </button>
           <button type="button" className="btn-text" onClick={reset}>
             Upscale another
