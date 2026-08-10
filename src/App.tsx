@@ -1,39 +1,19 @@
-import { Hero } from './components/Hero'
-import { Workspace } from './components/Workspace'
+import { Tool } from './components/Tool'
 
 function App() {
   return (
-    <div id="top" className="page">
-      <Hero />
+    <div className="page">
+      <header className="topbar">
+        <a className="topbar__brand" href="/">
+          <span className="topbar__mark" aria-hidden="true" />
+          PixelBoost
+        </a>
+      </header>
 
-      <main>
-        <Workspace />
-
-        <section className="how" id="how">
-          <div className="section-intro">
-            <h2>Local processing. Clear steps.</h2>
-            <p>No accounts, no uploads, no waiting on a remote GPU queue.</p>
-          </div>
-          <ol className="how__list">
-            <li>
-              <strong>Choose a photo</strong>
-              <span>Drop any common image format into the workspace.</span>
-            </li>
-            <li>
-              <strong>Pick a scale</strong>
-              <span>2×, 4×, or 8× using an ESRGAN model that reconstructs edges and texture.</span>
-            </li>
-            <li>
-              <strong>Download</strong>
-              <span>Export PNG, JPG, or WebP — inference stays on your device.</span>
-            </li>
-          </ol>
-        </section>
-      </main>
+      <Tool />
 
       <footer className="footer">
-        <p className="footer__brand">PixelBoost</p>
-        <p>Image upscaling that stays in the browser.</p>
+        <p>© PixelBoost — upscale images in your browser. Files stay on your device.</p>
       </footer>
     </div>
   )
