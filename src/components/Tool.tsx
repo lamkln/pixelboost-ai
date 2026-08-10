@@ -1,4 +1,5 @@
-import { startTransition, useEffect, useId, useRef, useState } from 'react'
+import { startTransition, useEffect, useId, useRef, useState, type CSSProperties } from 'react'
+import { ProcessingViz } from './ProcessingViz'
 import {
   formatBytes,
   loadImageFromFile,
@@ -35,6 +36,7 @@ export function Tool() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [result, setResult] = useState<ResultState | null>(null)
   const [dragOver, setDragOver] = useState(false)
+  const [burst, setBurst] = useState(false)
 
   useEffect(() => {
     return () => {
@@ -48,6 +50,13 @@ export function Tool() {
     }
   }, [result])
 
+  useEffect(() => {
+    if (stage !== 'done') return
+    setBurst(true)
+    const timer = window.setTimeout(() => setBurst(false), 1200)
+    return () => window.clearTimeout(timer)
+  }, [stage, result?.afterSrc])
+
   const reset = () => {
     setStage('idle')
     setProgress(0)
@@ -56,6 +65,7 @@ export function Tool() {
     setImageEl(null)
     setPreviewUrl(null)
     setResult(null)
+    setBurst(false)
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
@@ -136,14 +146,20 @@ export function Tool() {
     imageEl != null ? `${imageEl.width * scale}×${imageEl.height * scale}` : null
 
   return (
-    <main className="tool">
-      <div className="tool__intro">
+    <main className={`tool tool--${stage}`}>
+      <div className="tool__aurora" aria-hidden="true">
+        <span />
+        <span />
+        <span />
+      </div>
+
+      <div className="tool__intro anim-in">
         <h1>Upscale Image</h1>
         <p>Increase image resolution with AI. Free, private, no upload to a server.</p>
       </div>
 
       {stage === 'idle' && (
-        <div className="tool__panel">
+        <div className="tool__panel anim-panel">
           <div
             className={`uploader${dragOver ? ' is-drag' : ''}`}
             onDragEnter={(event) => {
@@ -166,6 +182,7 @@ export function Tool() {
               void acceptFile(event.dataTransfer.files[0])
             }}
           >
+            <div className="uploader__pulse" aria-hidden="true" />
             <input
               ref={fileInputRef}
               id={inputId}
@@ -176,7 +193,7 @@ export function Tool() {
             />
             <button
               type="button"
-              className="btn-select"
+              className="btn-select btn-shine"
               onClick={() => fileInputRef.current?.click()}
             >
               Select image
@@ -185,13 +202,13 @@ export function Tool() {
             <p className="uploader__meta">JPG, PNG, WebP · up to 1600px</p>
           </div>
 
-          {error && <p className="error">{error}</p>}
+          {error && <p className="error anim-shake">{error}</p>}
         </div>
       )}
 
       {stage === 'ready' && file && imageEl && previewUrl && (
-        <div className="tool__panel tool__panel--ready">
-          <div className="file-row">
+        <div className="tool__panel tool__panel--ready anim-panel">
+          <div className="file-row anim-pop">
             <img className="status-thumb" src={previewUrl} alt="" />
             <div className="file-row__text">
               <strong>{file.name}</strong>
@@ -204,12 +221,13 @@ export function Tool() {
           <div className="scale-block">
             <p className="scale-block__label">Upscale by</p>
             <div className="scale-row" role="radiogroup" aria-label="Upscale amount">
-              {SCALES.map((option) => (
+              {SCALES.map((option, index) => (
                 <button
                   key={option.value}
                   type="button"
                   role="radio"
                   className={`scale-chip${scale === option.value ? ' is-active' : ''}`}
+                  style={{ animationDelay: `${120 + index * 70}ms` }}
                   onClick={() => setScale(option.value)}
                   aria-checked={scale === option.value}
                 >
@@ -219,27 +237,31 @@ export function Tool() {
               ))}
             </div>
             {outputPreview && (
-              <p className="scale-block__out">
+              <p className="scale-block__out anim-tick" key={outputPreview}>
                 Output size: <strong>{outputPreview}</strong>
               </p>
             )}
           </div>
 
-          <button type="button" className="btn-select btn-select--block" onClick={() => void runUpscale()}>
+          <button
+            type="button"
+            className="btn-select btn-select--block btn-shine"
+            onClick={() => void runUpscale()}
+          >
             Upscale {scale}x
           </button>
           <button type="button" className="btn-text" onClick={reset}>
             Choose another image
           </button>
 
-          {error && <p className="error">{error}</p>}
+          {error && <p className="error anim-shake">{error}</p>}
         </div>
       )}
 
-      {stage === 'working' && (
-        <div className="tool__panel tool__panel--status">
-          {previewUrl && <img className="status-thumb" src={previewUrl} alt="" />}
-          <h2>Upscaling {scale}x…</h2>
+      {stage === 'working' && previewUrl && (
+        <div className="tool__panel tool__panel--status anim-panel">
+          <ProcessingViz previewUrl={previewUrl} progress={progress} scale={scale} />
+          <h2 className="anim-pulse-text">Upscaling {scale}x…</h2>
           <p className="status-file">{file?.name}</p>
           <div
             className="progress"
@@ -249,6 +271,7 @@ export function Tool() {
             aria-valuenow={Math.round(progress * 100)}
           >
             <div className="progress__fill" style={{ width: `${Math.max(8, progress * 100)}%` }} />
+            <div className="progress__glow" style={{ left: `${Math.max(8, progress * 100)}%` }} />
           </div>
           <p className="status-pct">
             {progress < 0.05 ? 'Loading AI model…' : `${Math.round(progress * 100)}%`}
@@ -257,12 +280,22 @@ export function Tool() {
       )}
 
       {stage === 'done' && result && (
-        <div className="tool__panel tool__panel--done">
-          <img className="result-preview" src={result.afterSrc} alt="Upscaled result" />
-          <p className="result-meta">
+        <div className={`tool__panel tool__panel--done anim-panel${burst ? ' is-burst' : ''}`}>
+          {burst && (
+            <div className="burst" aria-hidden="true">
+              {Array.from({ length: 18 }, (_, i) => (
+                <span key={i} style={{ '--i': i } as CSSProperties} />
+              ))}
+            </div>
+          )}
+          <div className="result-frame">
+            <img className="result-preview" src={result.afterSrc} alt="Upscaled result" />
+            <div className="result-reveal" aria-hidden="true" />
+          </div>
+          <p className="result-meta anim-pop">
             {result.scale}x · {result.width}×{result.height} · {result.sizeLabel}
           </p>
-          <button type="button" className="btn-select" onClick={download}>
+          <button type="button" className="btn-select btn-shine anim-pop" onClick={download}>
             Download
           </button>
           <button
