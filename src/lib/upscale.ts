@@ -115,6 +115,41 @@ async function runModelPass(
   return loadImageFromUrl(base64)
 }
 
+/** Upscale a canvas/image frame and paint into an existing destination canvas. */
+export async function upscaleFrameToCanvas(
+  source: HTMLImageElement | HTMLCanvasElement,
+  dest: HTMLCanvasElement,
+  scale: ScaleFactor,
+  onProgress?: (progress: number) => void,
+): Promise<void> {
+  const srcW = source.width
+  const srcH = source.height
+  const outW = Math.round(srcW * scale)
+  const outH = Math.round(srcH * scale)
+
+  if (outW * outH > 24_000_000) {
+    throw new Error('Output would be too large. Try a smaller frame or lower scale.')
+  }
+
+  let enhanced: HTMLImageElement
+  if (scale === 8) {
+    const mid = await runModelPass(source, 4, onProgress, 0.02, 0.62)
+    enhanced = await runModelPass(mid, 2, onProgress, 0.62, 0.95)
+  } else {
+    enhanced = await runModelPass(source, scale, onProgress, 0.02, 0.95)
+  }
+
+  dest.width = outW
+  dest.height = outH
+  const ctx = dest.getContext('2d')
+  if (!ctx) throw new Error('Canvas is not available in this browser.')
+  ctx.imageSmoothingEnabled = true
+  ctx.imageSmoothingQuality = 'high'
+  ctx.clearRect(0, 0, outW, outH)
+  ctx.drawImage(enhanced, 0, 0, outW, outH)
+  onProgress?.(1)
+}
+
 /** ESRGAN AI upscale in the browser (2× / 4× models; 8× = 4× then 2×). */
 export async function upscaleImage(
   source: HTMLImageElement,
