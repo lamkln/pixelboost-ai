@@ -1,8 +1,11 @@
 # PixelBoost
 
-Simple AI image upscaler — pick 2x or 4x, select an image, download the result.
+Simple browser upscaler for **images** and **videos**.
 
-All processing runs in your browser with ESRGAN. Files are never uploaded.
+- Image: ESRGAN AI · 2x / 4x / 8x
+- Video: Quality (fast) or AI frames · 2x / 4x · exports WebM
+
+All processing stays on your device.
 
 ## Develop
 
@@ -17,8 +20,3 @@ npm run dev
 npm run build
 npm run preview
 ```
-
-## Stack
-
-- Vite + React + TypeScript
-- UpscalerJS + ESRGAN Slim (TensorFlow.js)
