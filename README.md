@@ -1,8 +1,11 @@
 # PixelBoost
 
-Private, browser-based image upscaling.
+Simple browser upscaler for **images** and **videos**.
 
-Upload a photo, choose 2× / 4× / 8×, compare the result, and download PNG, JPG, or WebP. All processing runs locally in your browser — files are never uploaded.
+- Image: ESRGAN AI · 2x / 4x / 8x
+- Video: Quality (fast) or AI frames · 2x / 4x · exports WebM
+
+All processing stays on your device.
 
 ## Develop
 
@@ -17,8 +20,3 @@ npm run dev
 npm run build
 npm run preview
 ```
-
-## Stack
-
-- Vite + React + TypeScript
-- Client-side progressive resampling with a light sharpen pass

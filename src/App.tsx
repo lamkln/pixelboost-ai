@@ -1,39 +1,41 @@
-import { Hero } from './components/Hero'
-import { Workspace } from './components/Workspace'
+import { useState } from 'react'
+import { Tool } from './components/Tool'
+import { VideoTool } from './components/VideoTool'
+
+type Mode = 'image' | 'video'
 
 function App() {
+  const [mode, setMode] = useState<Mode>('video')
+
   return (
-    <div id="top" className="page">
-      <Hero />
+    <div className="page">
+      <header className="topbar">
+        <a className="topbar__brand" href="/">
+          <span className="topbar__mark" aria-hidden="true" />
+          PixelBoost
+        </a>
+        <nav className="topbar__modes" aria-label="Tool">
+          <button
+            type="button"
+            className={mode === 'image' ? 'is-active' : undefined}
+            onClick={() => setMode('image')}
+          >
+            Image
+          </button>
+          <button
+            type="button"
+            className={mode === 'video' ? 'is-active' : undefined}
+            onClick={() => setMode('video')}
+          >
+            Video
+          </button>
+        </nav>
+      </header>
 
-      <main>
-        <Workspace />
-
-        <section className="how" id="how">
-          <div className="section-intro">
-            <h2>Local processing. Clear steps.</h2>
-            <p>No accounts, no uploads, no waiting on a remote GPU queue.</p>
-          </div>
-          <ol className="how__list">
-            <li>
-              <strong>Choose a photo</strong>
-              <span>Drop any common image format into the workspace.</span>
-            </li>
-            <li>
-              <strong>Pick a scale</strong>
-              <span>2×, 4×, or 8× with progressive resampling and a light sharpen pass.</span>
-            </li>
-            <li>
-              <strong>Download</strong>
-              <span>Export PNG, JPG, or WebP — still entirely on your device.</span>
-            </li>
-          </ol>
-        </section>
-      </main>
+      {mode === 'image' ? <Tool key="image" /> : <VideoTool key="video" />}
 
       <footer className="footer">
-        <p className="footer__brand">PixelBoost</p>
-        <p>Image upscaling that stays in the browser.</p>
+        <p>© PixelBoost — upscale images & videos in your browser. Files stay on your device.</p>
       </footer>
     </div>
   )
