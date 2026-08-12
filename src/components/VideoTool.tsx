@@ -15,8 +15,8 @@ const SCALES: { value: VideoScaleFactor; label: string; hint: string }[] = [
 ]
 
 const MODES: { value: VideoEnhanceMode; label: string; hint: string }[] = [
-  { value: 'quality', label: 'Quality', hint: 'Fast · up to 12s' },
-  { value: 'ai', label: 'AI', hint: 'Slower · up to 3s' },
+  { value: 'quality', label: 'Quality', hint: 'Fast · up to 30s' },
+  { value: 'ai', label: 'AI', hint: 'Slower · up to 10s' },
 ]
 
 type ResultState = {
@@ -91,17 +91,17 @@ export function VideoTool() {
       setError('Please choose an MP4, WebM, or MOV video.')
       return
     }
-    if (next.size > 40 * 1024 * 1024) {
-      setError('Keep videos under 40 MB.')
+    if (next.size > 200 * 1024 * 1024) {
+      setError('Keep videos under 200 MB.')
       return
     }
 
     try {
       const loaded = await loadVideoFromFile(next)
       const meta = getVideoMeta(loaded.video)
-      if (meta.width > 640 || meta.height > 640) {
+      if (meta.width > 1920 || meta.height > 1920) {
         URL.revokeObjectURL(loaded.url)
-        setError('Use videos 640×640 or smaller.')
+        setError('Use videos 1920×1920 or smaller.')
         return
       }
 
@@ -228,7 +228,7 @@ export function VideoTool() {
               Select video
             </button>
             <p className="uploader__hint">or drop a video here</p>
-            <p className="uploader__meta">MP4, WebM · up to 640px · no audio in export</p>
+            <p className="uploader__meta">MP4, WebM · up to 1920px · no audio in export</p>
           </div>
 
           {error && <p className="error anim-shake">{error}</p>}

@@ -78,15 +78,15 @@ export function Tool() {
       setError('Please choose a JPG, PNG, or WebP image.')
       return
     }
-    if (next.size > 15 * 1024 * 1024) {
-      setError('Keep uploads under 15 MB.')
+    if (next.size > 50 * 1024 * 1024) {
+      setError('Keep uploads under 50 MB.')
       return
     }
 
     try {
       const img = await loadImageFromFile(next)
-      if (img.width > 1600 || img.height > 1600) {
-        setError('Use images 1600×1600 or smaller.')
+      if (img.width > 4000 || img.height > 4000) {
+        setError('Use images 4000×4000 or smaller.')
         return
       }
 
@@ -199,7 +199,7 @@ export function Tool() {
               Select image
             </button>
             <p className="uploader__hint">or drop an image here</p>
-            <p className="uploader__meta">JPG, PNG, WebP · up to 1600px</p>
+            <p className="uploader__meta">JPG, PNG, WebP · up to 4000px</p>
           </div>
 
           {error && <p className="error anim-shake">{error}</p>}

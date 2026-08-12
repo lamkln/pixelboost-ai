@@ -162,7 +162,7 @@ export async function upscaleImage(
   const destW = Math.round(srcW * scale)
   const destH = Math.round(srcH * scale)
 
-  if (destW * destH > 24_000_000) {
+  if (destW * destH > 36_000_000) {
     throw new Error('Output would be too large. Try a smaller image or lower scale.')
   }
 

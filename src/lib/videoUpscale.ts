@@ -134,23 +134,23 @@ export async function upscaleVideo(
 ): Promise<VideoUpscaleResult> {
   const srcW = video.videoWidth
   const srcH = video.videoHeight
-  const maxDuration = mode === 'ai' ? 3 : 12
+  const maxDuration = mode === 'ai' ? 10 : 30
   const fps = mode === 'ai' ? 8 : 16
   const duration = Math.min(video.duration || 0, maxDuration)
 
   if (!duration || duration < 0.2) {
     throw new Error('Video is too short to upscale.')
   }
-  if (srcW > 640 || srcH > 640) {
-    throw new Error('Use videos 640×640 or smaller for browser upscaling.')
+  if (srcW > 1920 || srcH > 1920) {
+    throw new Error('Use videos 1920×1920 or smaller for browser upscaling.')
   }
-  if (mode === 'ai' && (srcW > 360 || srcH > 360)) {
-    throw new Error('AI video mode supports up to 360×360. Try Quality mode or a smaller clip.')
+  if (mode === 'ai' && (srcW > 960 || srcH > 960)) {
+    throw new Error('AI video mode supports up to 960×960. Try Quality mode or a smaller clip.')
   }
 
   const destW = Math.round(srcW * scale)
   const destH = Math.round(srcH * scale)
-  if (destW * destH > 4_000_000) {
+  if (destW * destH > 16_000_000) {
     throw new Error('Output frames would be too large. Try a lower scale.')
   }
 
